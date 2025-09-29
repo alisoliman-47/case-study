@@ -22,7 +22,7 @@ Verifier: labels like Deep Learning / Clinical Trial / Traditional Methods
 
 > Requirements: Python 3.9+ (3.10 recommended), ~2 GB free disk, internet access to read the public S3 bucket.
 
-### 1) Create the environment
+### Setup the notebook/dependencies
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate
