@@ -3,7 +3,7 @@ Sanofi Case Study
 
 ## Architecture
 
-```mermaid
+mermaid
 flowchart LR
     Q[User Query] --> R[Retriever<br/>MiniLM embeddings + cosine]
     R -->|Top-K abstracts| S[Summarizer<br/>t5-small (CPU)]
