@@ -31,6 +31,7 @@ pip install --upgrade pip
 pip install "transformers>=4.42" "torch>=2.2" "sentence-transformers>=2.2" \
             s3fs "pandas>=2.2" "numpy>=1.26" "scikit-learn>=1.4" "tqdm>=4.66"
 jupyter notebook
+```
 
 ## Design Choices & Trade-offs
 
