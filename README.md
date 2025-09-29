@@ -6,10 +6,11 @@ Sanofi Case Study
 ```mermaid
 flowchart LR
     Q[User Query] --> R[Retriever<br/>MiniLM embeddings + cosine]
-    R -->|Top-K abstracts| S[Summarizer<br/>t5-small (CPU)]
+    R -->|Top-K abstracts| S[Summarizer<br/>t5-small]
     S -->|2–3 sentence summary + keywords| OUT[(Report: CSV & JSON)]
     S --> V[(Optional Verifier<br/>Theme assignment)]
     V --> OUT
+```
 
 Retriever: sentence-transformers/all-MiniLM-L6-v2
 
@@ -21,7 +22,7 @@ Verifier: labels like Deep Learning / Clinical Trial / Traditional Methods
 
 > Requirements: Python 3.9+ (3.10 recommended), ~2 GB free disk, internet access to read the public S3 bucket.
 
-### 1) Create the environment
+### Setup the notebook/dependencies
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate
@@ -30,57 +31,53 @@ pip install --upgrade pip
 pip install "transformers>=4.42" "torch>=2.2" "sentence-transformers>=2.2" \
             s3fs "pandas>=2.2" "numpy>=1.26" "scikit-learn>=1.4" "tqdm>=4.66"
 jupyter notebook
+```
 
 ## Design Choices & Trade-offs
 
-Scope & runtime
+**Scope & runtime**  
+- **Decision:** Work on a small subset (< 100 docs) with **seeded sampling**.  
+- **Why:** Keeps runs fast on CPU and makes results reproducible.  
+- **Trade-off:** Smaller corpus can miss some relevant items. (Upgrade path: increase subset size or pre-index a larger cache.)
 
-< 100 docs to guarantee fast, CPU-only runs and predictable demo time.
+**Retrieval**  
+- **Decision:** `sentence-transformers/all-MiniLM-L6-v2` embeddings + **cosine similarity** over **L2-normalized** vectors (NumPy, in-memory).  
+- **Why:** Strong semantic signal at low cost; no extra infrastructure required.  
+- **Trade-off:** Not as scalable as a vector DB and no lexical (BM25) hybrid by default.  
+  - *Upgrade path:* FAISS/pgvector for scale; optional BM25+embeddings hybrid.
 
-Seeded sampling for reproducibility between runs/interviews.
+**Parsing**  
+- **Decision:** Heuristic **title/abstract** extractor tailored to PMC TXT (handles “Front” blocks, content-type lines, true **Abstract** headers).  
+- **Why:** Robust enough for varied publishers while avoiding heavy PDF parsing.  
+- **Trade-off:** Occasional edge cases.  
+  - *Upgrade path:* section-aware parsing or a structured parser (e.g., GROBID) when needed.
 
-Retrieval
+**Summarization**  
+- **Decision:** **t5-small** (with distilled BART fallback) producing **2-3 sentence** summaries.  
+- **Why:** CPU-friendly, predictable lengths for scanability.  
+- **Trade-off:** Smaller models are faster but less nuanced than larger LLMs.  
+  - *Upgrade path:* larger summarizers or task-specific prompting when compute allows.
 
-MiniLM (all-MiniLM-L6-v2) embeddings: strong semantic signal at low cost.
+**Keywords**  
+- **Decision:** Per-doc **TF-IDF** to extract a few topical terms.  
+- **Why:** Zero training, very fast, good for quick scanning.  
+- **Trade-off:** Purely lexical (not concept-aware).  
+  - *Upgrade path:* KeyBERT or embedding-based keyphrase extraction.
 
-Simple cosine similarity on normalized vectors (NumPy) → no extra infra to operate.
+**Verifier (optional)**  
+- **Decision:** Zero-shot/similarity theme tag (**Deep Learning / Clinical Trial / Traditional Methods**).  
+- **Why:** Adds quick triage without training.  
+- **Trade-off:** Coarse and not production-grade.  
+  - *Upgrade path:* fine-tuned domain classifier or curated zero-shot labels.
 
-Trade-off: not as scalable as a vector DB; acceptable for a prototype. Easy to swap in FAISS/pgvector later.
+**Simplicity & infra**  
+- **Decision:** **In-memory index** (NumPy) and **direct S3 reads** via `s3fs`.  
+- **Why:** Fewer moving parts; easy to understand and demo.  
+- **Trade-off:** Some networks block anonymous listing; less suited to very large corpora.  
+  - *Fallback:* use AWS CLI to pre-download a small local subset.  
+  - *Scale path:* switch to FAISS/pgvector and batch S3 ingestion.
 
-Parsing
-
-Heuristic title/abstract extractor tailored to PMC TXT (handles “Front” blocks, content-type lines, true Abstract headers).
-
-Trade-off: occasional edge cases remain; avoids heavy PDF parsing to keep things lightweight.
-
-Summarization
-
-Default t5-small (with distilled BART fallback) for 2–3 sentence summaries.
-
-Trade-off: smaller models are faster but less nuanced than larger LLMs; acceptable here given the scope.
-
-Keywords
-
-Per-doc TF-IDF for quick topical cues; no training required.
-
-Trade-off: purely lexical; not concept-aware, but cheap and effective for scanability.
-
-Verifier (optional)
-
-Simple theme tags (e.g., Deep Learning / Clinical Trial / Traditional Methods) via zero-shot or similarity.
-
-Trade-off: coarse and not production-grade; useful for triage, can be replaced by a fine-tuned classifier.
-
-Simplicity & infra
-
-In-memory index rather than a vector DB; fewer moving parts, clearer notebook.
-
-Direct S3 read (s3fs) to avoid pre-syncing large datasets.
-
-Trade-off: listing can be blocked on some networks → provide AWS-CLI/local fallback.
-
-Outputs & reviewability
-
-Emit both CSV and JSON for easy inspection, grading, or downstream tooling.
-
-Include retrieval scores to explain ranking decisions.
+**Outputs & reviewability**  
+- **Decision:** Emit both **CSV** and **JSON** with retrieval **scores**.  
+- **Why:** Easy to inspect, grade, and integrate into downstream tools.  
+- **Trade-off:** None significant for this scope.
