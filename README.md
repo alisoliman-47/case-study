@@ -3,13 +3,14 @@ Sanofi Case Study
 
 ## Architecture
 
-mermaid
+```mermaid
 flowchart LR
     Q[User Query] --> R[Retriever<br/>MiniLM embeddings + cosine]
     R -->|Top-K abstracts| S[Summarizer<br/>t5-small (CPU)]
     S -->|2–3 sentence summary + keywords| OUT[(Report: CSV & JSON)]
     S --> V[(Optional Verifier<br/>Theme assignment)]
     V --> OUT
+```
 
 Retriever: sentence-transformers/all-MiniLM-L6-v2
 
